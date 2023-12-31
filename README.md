@@ -2,6 +2,8 @@
 
 OCA-NET: A Physical Information Neural Network to Solve Acoustic Wave Equation and Its Inverse Problem
 
+The code in this repository is a preliminary version, used only to illustrate the principles, and a more complete version will be put together after the paper is published. Any questions about the code can be directed to 1063064604@qq.com.
+
 Special thanks are due to the following work, on the basis of which we have improved the structure.
 
 ```
