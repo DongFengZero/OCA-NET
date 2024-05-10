@@ -33,16 +33,6 @@ lapl_op2 = [[[[    0,   1, 0],
              [    1,   -4,   1],
              [0, 1,    0]]]]
 solve = []
-# generalized version
-# def initialize_weights(module):
-#     ''' starting from small initialized parameters '''
-#     if isinstance(module, nn.Conv2d):
-#         c = 0.1
-#         module.weight.data.uniform_(-c*np.sqrt(1 / np.prod(module.weight.shape[:-1])),
-#                                      c*np.sqrt(1 / np.prod(module.weight.shape[:-1])))
-
-#     elif isinstance(module, nn.Linear):
-#         module.bias.data.zero_()
 
 def return_solve(t,x,y):
     return solve[t,0,x,y]
@@ -211,14 +201,14 @@ class encoder_block(nn.Module):
         return self.act(self.conv(x))
 
 
-class PhyCRNet(nn.Module):
+class OcaNet(nn.Module):
     ''' physics-informed convolutional-recurrent neural networks '''
 
     def __init__(self, input_channels, hidden_channels,
                  input_kernel_size, input_stride, input_padding, dt, dx,
                  num_layers, upscale_factor, step=1, effective_step=[1]):
 
-        super(PhyCRNet, self).__init__()
+        super(OcaNet, self).__init__()
 
         # input channels of layer includes input_channels and hidden_channels of cells
         self.backward_state = None
@@ -255,16 +245,10 @@ class PhyCRNet(nn.Module):
         self.fc93 = nn.Linear(64, 64)  # 第二层全连接层
         self.fc94 = nn.Linear(64, 2 * 64 * 64)
 
-        # self.fc61 = nn.Conv1d(in_channels=2, out_channels=1, kernel_size=2)
-        # self.fc62 = nn.Conv1d(in_channels=2, out_channels=1, kernel_size=2)
-        # self.fc63 = nn.Conv1d(in_channels=2, out_channels=1, kernel_size=2)
-        # self.fc64 = nn.Conv1d(in_channels=2, out_channels=1, kernel_size=2)
 
         self.fc61 = nn.Linear(1 * 64 * 64, 128)  # 第二层全连接层
         self.fc62 = nn.Linear(128, 128)  # 第二层全连接层
         self.fc64 = nn.Linear(128, 64 * 64)
-
-        #self.conv_layer = nn.Conv2d(in_channels=1, out_channels=1, kernel_size=3, stride=1, padding=0)
 
         self.fc74 = nn.Linear(120, 64)  # 第二层全连接层
         self.fc75 = nn.Linear(64, 64)  # 第二层全连接层
@@ -327,10 +311,6 @@ class PhyCRNet(nn.Module):
         for x in range(20):
             for y in range(20):
                 self.ref_sol2[:, :, x, y] = self.ref_sol1[:, :, 3 * (x + 1), 3 * (y + 1)]
-        # self.ref_sol3 = torch.zeros((self.ref_sol.shape[0], 1, 14, 14)).cuda()
-        # for x in range(14):
-        #     for y in range(2,3,1):
-        #         self.ref_sol3[:, :, x, y] = self.ref_sol[:, :, 4 * (x + 1), 4 * (y + 1)]
 
         self.apply(initialize_weights)
 
@@ -344,13 +324,6 @@ class PhyCRNet(nn.Module):
 
         outputs3 = []
 
-        # c6 = torch.reshape(self.ref_sol2[0:2,:,:,:],(1,2*10*10))
-        # c6 = torch.tanh(self.fc82(c6))
-        # c6 = torch.tanh(self.fc83(c6))
-        # c6 = torch.reshape(self.fc84(c6),(2,1,64,64))
-        # x_tt = c6[0:1,:,:,:]
-        # x_t = c6[1:2,:,:,:]
-
         if nid == 0:
             ref_speed2 = 0
             # temp = torch.ones((1,120)).cuda()
@@ -358,13 +331,10 @@ class PhyCRNet(nn.Module):
                 temp = torch.reshape(self.ref_sol2[step:step + 3, :, 1, :], (1, 3 * 20))
                 temp = torch.cat((temp, torch.reshape(self.ref_sol2[step:step + 3, :, :, 1], (1, 3 * 20))), dim=0)
                 temp = torch.reshape(temp, (1, 120))
-                # c5 = torch.reshape(c5, (1, 3 *10 * 10))
                 c5 = torch.tanh(self.fc74(temp))
                 c5 = torch.tanh(self.fc75(c5))
                 c2 = torch.reshape(F.softplus(self.fc81(c5)), (1, 1))
                 ref_speed2 = (ref_speed2 * step + c2) / (step + 1)
-                # ref_speed31 = (ref_speed31 * id + ref_speed21) / (id + 1)
-            # ref_speed2[:, :, -2:, :] = ref_speed2[:, :, 0:2, :] = ref_speed2[:, :, :, -2:] = ref_speed2[:, :, :, 0:2] = 1
         x_init2 = x_tt.clone()
         x_init = x_t.clone()
         outputs1 = []
@@ -390,10 +360,6 @@ class PhyCRNet(nn.Module):
         for step in range(self.step-1):
             x_tt = outputs11[-2].clone()
             x_t = outputs11[-1].clone()
-            # for x in range(10):
-            #     for y in range(10):
-            #         x_tt[:, :, 6 * (x + 1), 6 * (y + 1)] = self.ref_sol2[step:step + 1, :, x, y]
-            #         x_t[:, :, 6*(x+1), 6*(y+1)] =self.ref_sol2[step+1:step+2, :, x, y]
             x = x_t.clone()
 
             # encoder
@@ -433,13 +399,6 @@ class PhyCRNet(nn.Module):
         outputs4.append(outputs11[-1])
         outputs4.append(outputs11[-2])
         for step in range(self.step-1):
-            # for x in range(10):
-            #     for y in range(10):
-            #         x_tt1[:, :, 6 * (x + 1), 6 * (y + 1)] = self.ref_sol2[self.ref_sol2.shape[0]-1:self.ref_sol2.shape[0], :, x, y]
-            #         x_t2[:, :, 6*(x+1), 6*(y+1)] =self.ref_sol2[self.ref_sol2.shape[0]-2:self.ref_sol2.shape[0]-1, :, x, y]
-            # x_t = outputs2[-(step + 1)]
-            # c3 = torch.squeeze(x_t, dim=1)
-            # x_temp2 = self.encoder1(c3, mask=None)
             # convlstm forward
             x_tt1 = outputs4[-2].clone()
             x_t12 = outputs4[-1].clone()
@@ -482,32 +441,6 @@ class PhyCRNet(nn.Module):
         outputs4 = torch.cat(tuple(outputs4), dim=0)
         outputs4 = torch.flip(outputs4, dims=[0]).cuda()
         outputs11 = torch.cat(tuple(outputs11), dim=0).cuda()
-        # # outputs4 = torch.cat((outputs11[0:2, :, :, :], outputs4[1:, :, :, :]), dim=0)
-        #
-        # for step in range(self.step-1):
-        #     x_tt = outputs6[-2].clone()
-        #     x_t = outputs6[-1].clone()
-        #     # for x in range(10):
-        #     #     for y in range(10):
-        #     #         x_tt[:, :, 6 * (x + 1), 6 * (y + 1)] = self.ref_sol2[step:step + 1, :, x, y]
-        #     #         x_t[:, :, 6 * (x + 1), 6 * (y + 1)] = self.ref_sol2[step + 1:step + 2, :, x, y]
-        #     x_temp3 = torch.cat((outputs11[step + 2:step + 3, :, :, :], outputs4[step + 2:step + 3, :, :, :]), dim=0)
-        #     x_temp3 = torch.reshape(x_temp3, (1, 2 * 64 * 64))
-        #     x_temp3 = torch.relu(self.fc91(x_temp3))
-        #     x_temp3 = torch.reshape(self.fc94(x_temp3), (1, 128, 8, 8))
-        #     x_temp3 = self.pixelshuffle(x_temp3)
-        #     x_temp3 = self.output_layer(x_temp3)
-        #     x_temp4 = x_temp3.clone()
-        #     x_temp3[:, :, 1:-1, 1:-1] = (2 * x_t[:, :, 1:-1, 1:-1] - x_tt[:, :, 1:-1, 1:-1]) + x_temp4[:, :, 1:-1,
-        #                                                                                        1:-1] * \
-        #                                 (ref_speed2 ** 2) * (self.dt ** 2) / (self.dx ** 2)
-        #     x_temp3[:, :, 0, :] = x_temp3[:, :, -1, :] = x_temp3[:, :, :, 0] = x_temp3[:, :, :, -1] = 0
-        #
-        #     if step in self.effective_step:
-        #         outputs6.append(x_temp3)
-        #
-        # outputs6 = torch.cat(tuple(outputs6), dim=0).cuda()
-        #outputs62 = torch.cat(tuple(outputs62), dim=0)
         return outputs11, outputs4, outputs6, outputs62, second_last_state_forward, second_last_state_backward, ref_speed2
 
 
@@ -590,8 +523,8 @@ class loss_generator(nn.Module):
             kernel_size=3,
             name='partial_tt').cuda()
 
-        self.ref_sol = torch.load('E:/Image_Dataset/True/temp10.pt').cuda()
-        self.ref_sol1 = torch.load('E:/Image_Dataset/True/temp10.pt').cuda()
+        self.ref_sol = torch.load('./True/temp10.pt').cuda()
+        self.ref_sol1 = torch.load('./True/temp10.pt').cuda()
         self.speed = torch.load('./c_speed.pt').cuda()
         self.speed = torch.unsqueeze((torch.unsqueeze(self.speed,dim=0)),dim=0)
         self.zero =  torch.zeros((1,1,64)).cuda()
@@ -603,11 +536,6 @@ class loss_generator(nn.Module):
             new_points_unique = torch.unique(new_points, dim=0)
             points = torch.cat([points, new_points_unique], dim=0)
         return points[:90]
-
-    def get_ref_Loss(self):
-        temp_res = self.ref_sol[:,:,:,:]
-        #temp_res = torch.squeeze(temp_res,dim=1)
-        return temp_res
 
     def get_ref_Loss1(self):
         temp_res = self.ref_sol1[:,:,:,:]
@@ -622,56 +550,6 @@ class loss_generator(nn.Module):
                 local_res[:, :, x, y] = res1[:, :, 6 * (x + 1), 6 * (y + 1)]
 
         return local_res
-
-    def get_laplace_Loss(self, output):
-        output1 = torch.squeeze(output, dim=1)
-        output3 = torch.zeros_like(output1[2:, :, :]).cuda()
-        dt = 0.01
-        t_max = 0.01 * (int(output3.shape[0]) + 1)
-        # dx = 0.01
-        for n in range(1, int(t_max / dt)):
-            # 在边界处设置固定边界条件
-            #output3[:, 0, :] = output3[:, -1, :] = output3[:, :, 0] = output3[:, :, -1] = 0
-
-            # 在内部节点上使用五点差分法计算新的波场
-            #output3[(n + 1) - 2, :, :] = (-output1[n+1,:, :] +2 * output1[n, :, :] - output1[n - 1,:, :] )/((dt**2)*(c[2:3,:]**2))
-            output3[(n + 1) - 2, 1:-1, 1:-1] = (output1[n, 2:, 1:-1] - 2 * output1[n, 1:-1, 1:-1] + output1[n, :-2,1:-1]) + \
-                                               (output1[n, 1:-1, 2:] - 2 * output1[n, 1:-1, 1:-1] + output1[n, 1:-1,:-2])
-
-        return torch.unsqueeze(output3[:,:,:], dim=1)
-
-    def get_laplace_Loss2(self, output, c):
-        output1 = torch.squeeze(output, dim=1)
-        output3 = torch.zeros_like(output1[2:, :, :]).cuda()
-        dt = 0.01
-        t_max = 0.01 * (int(output3.shape[0]) + 1)
-        # dx = 0.01
-        for n in range(1, int(t_max / dt)):
-            # 在边界处设置固定边界条件
-            #output3[:, 0, :] = output3[:, -1, :] = output3[:, :, 0] = output3[:, :, -1] = 0
-
-            # 在内部节点上使用五点差分法计算新的波场
-            output3[(n + 1) - 2, :, :] = (-output1[n+1,:, :] +2 * output1[n, :, :] - output1[n - 1,:, :] )/(dt**2)+ \
-                                         (c**2)*((output1[n, 2:, 1:-1] - 2 * output1[n, 1:-1, 1:-1] + output1[n, :-2,1:-1]) + (output1[n, 1:-1, 2:] - 2 * output1[n, 1:-1, 1:-1] + output1[n, 1:-1,:-2]))
-
-        return torch.unsqueeze(output3[:,:,:], dim=1)
-
-    def get_residual_Loss(self, output, c):
-        output1 = torch.squeeze(output, dim=1)
-        output3 = torch.zeros_like(output1[2:, :, :]).cuda()
-        dt = 0.01
-        t_max = 0.01 * (int(output3.shape[0]) + 1)
-        # dx = 0.01
-        for n in range(1, int(t_max / dt)):
-            # 在边界处设置固定边界条件
-            #output3[:, 0, :] = output3[:, -1, :] = output3[:, :, 0] = output3[:, :, -1] = 0
-
-            # 在内部节点上使用五点差分法计算新的波场
-            output3[(n + 1) - 2, :, :] = (-output1[n+1,:, :] +2 * output1[n, :, :] - output1[n - 1,:, :] )/((dt**2)*(c[:,:]**2))
-            # output3[(n + 1) - 2, 1:-1, 1:-1] = (output1[n, 2:, 1:-1] - 2 * output1[n, 1:-1, 1:-1] + output1[n, :-2, 1:-1]) + \
-            #                                    (output1[n, 1:-1, 2:] - 2 * output1[n, 1:-1, 1:-1] + output1[n, 1:-1,:-2])
-
-        return torch.unsqueeze(output3[:, :, :], dim=1)
 
     def get_phy_Loss3(self, output, c, bsize, id):
         output1 = torch.squeeze(output.clone(), dim=1)
@@ -698,50 +576,6 @@ class loss_generator(nn.Module):
 
         return torch.unsqueeze(output1[2:, :, :], dim=1)
 
-    def get_phy_Loss4(self, output, c, bsize, id):
-        output1 = output.clone()
-        output1 = torch.squeeze(output1, dim=1)
-        output3 = torch.zeros_like(output1[2:, :, :]).cuda()
-        dt = 0.01
-        dx = dy = 1
-        t_max = 0.01 * (int(output3.shape[0]) + 1)
-        r1, r2 = ((dt ** 2) * (c ** 2)) / (dx ** 2), ((dt ** 2) * (c ** 2)) / (dy ** 2)
-        for n in range(1, int(t_max / dt)):
-            # 在内部节点上使用五点差分法计算新的波场
-            output1[:, 0, :] = output1[:, -1, :] = output1[:, :, 0] = output1[:, :, -1] = 0
-            output3[(n + 1) - 2, 1:-1, 1:-1] = (2 * output1[n, 1:-1, 1:-1] - output1[n + 1, 1:-1, 1:-1]) + \
-                                               r1 * (
-                                                       output1[n, 2:, 1:-1] - 2 * output1[n, 1:-1, 1:-1] + output1[n,
-                                                                                                           :-2, 1:-1]) + \
-                                               r2 * (
-                                                       output1[n, 1:-1, 2:] - 2 * output1[n, 1:-1, 1:-1] + output1[n,
-                                                                                                           1:-1, :-2])
-
-        return torch.unsqueeze(output3[:, :, :], dim=1)
-
-
-    def get_phy_Loss2(self, output, c,bsize,id):
-        output1=output.clone()
-        output1 = torch.squeeze(output1, dim=1)
-        ref_local_sol = self.get_ref_Loss1().cuda()
-        output3 = torch.zeros_like(output1[2:, :, :]).cuda()
-        dt = 0.01
-        dx = dy = 1
-        t_max = 0.01*(int(output3.shape[0])+1)
-        r1, r2 = ( (dt ** 2)*(c**2))/ (dx ** 2),((dt ** 2)*(c**2))/ (dy ** 2)
-        for n in range(1, int(t_max / dt)):
-            # 在边界处设置固定边界条件
-            output1[:, 0, :] = output1[:, -1, :] = output1[:, :, 0] = output1[:, :, -1] = 0
-
-            # 在内部节点上使用五点差分法计算新的波场
-            output3[(n + 1)-2, 1:-1, 1:-1] =(2*output1[n,1:-1,1:-1]-output1[n-1,1:-1,1:-1])+r1 * (
-                                                   output1[n, 2:, 1:-1] - 2 * output1[n, 1:-1, 1:-1] + output1[n,
-                                                                                                       :-2, 1:-1]) + \
-                                           r2 * (
-                                                   output1[n, 1:-1, 2:] - 2 * output1[n, 1:-1, 1:-1] + output1[n,
-                                                                                                       1:-1, :-2])
-
-        return torch.unsqueeze(output3[:, :, :], dim=1)
 
     def get_pressure_release_Loss(self,output,epoch):
         mse_loss = nn.MSELoss(reduction='mean')
@@ -801,21 +635,13 @@ def compute_loss(batchloss,output1, output9,output4,output8,loss_func, id, ref_s
     ref_local_sol = loss_func.get_ref_Loss1().cuda()
     ref_res_local1 = loss_func.get_local_Loss3(ref_local_sol)
 
-    #epoch = int((ref_res_local1.shape[0]-2)/2)
-    #output11 = loss_func.get_phy_Loss2(output4, ref_speed2, bsize, id)
+
     output13 = loss_func.get_phy_Loss3(output1, ref_speed2, bsize, id)
 
     p_res2=0
-    p_local=0
     p_b1 = 0
-    p_b2 = 0
-    w1=[]
-    w2=[]
     p_init = 0#mse_loss(output21[1:2, :, :, :], output4[1:2, :, :, :])
-    # epoch = int(output13.shape[0]/2)
 
-    # p_local37 = loss_func.get_local_Loss3(output13)
-    #p_local36 = loss_func.get_local_Loss3(output4)
     p_local37 = loss_func.get_local_Loss3(output1)
     p_local38 = loss_func.get_local_Loss3(output9)
 
@@ -836,40 +662,12 @@ def compute_loss(batchloss,output1, output9,output4,output8,loss_func, id, ref_s
         p_local6 += w1[num_len - i] * mse_loss(p_local38[i + 2:i + 3, :, :, 3],
                                                ref_res_local1[(bsize - 2) * id + i + 2:(bsize - 2) * id + i + 3, :, :,
                                                3])
-        # p_res2 +=w1[i]* mse_loss(output11[i:i + 1, :, :, :], output4[i + 2:i + 3, :, :, :]).cuda()
         p_res2 += w1[i] * mse_loss(output1[i + 2:i + 3, :, :, :], output13[i:i + 1, :, :, :]).cuda()
         p_res2 += w1[num_len - i] * mse_loss(output9[i + 2:i + 3, :, :, :], output13[i:i + 1, :, :, :]).cuda()
     p_res2 += mse_loss(output1[0:1, :, :, :], output9[0:1, :, :, :]).cuda() + mse_loss(output1[1:2, :, :, :],
                                                                                        output9[1:2, :, :, :]).cuda()
     p_local = p_local1 + p_local2 + p_local3 + p_local4 + p_local5 + p_local6
-    # p_res2 += loss_func.get_pressure_release_Loss(output4, i)
 
-    # for i in range(output11.shape[0]):
-    #     p_local += w1[i]*mse_loss(p_local36[i:i + 1, :,1, :],
-    #                         ref_res_local1[(bsize - 2) * id + i + 2:(bsize - 2) * id + i + 3, :,1, :])
-    #     p_local += w1[i]*mse_loss(p_local36[i:i + 1, :, :, 1],
-    #                         ref_res_local1[(bsize - 2) * id + i + 2:(bsize - 2) * id + i + 3, :, :, 1])
-    #     p_res2 += w1[i]*mse_loss(output11[i:i + 1, :, :, :], output4[i + 2:i + 3, :, :, :]).cuda()
-    #     p_res2 += loss_func.get_pressure_release_Loss(output4, i)
-
-    # for i in range(epoch):
-    #     p_local += mse_loss(p_local37[i:i + 1, :, :, :],
-    #                         ref_res_local1[(bsize - 2) * id + i + 2:(bsize - 2) * id + i + 3, :, :, :])
-    #     p_res2 += mse_loss(output13[i:i + 1, :, :, :], output4[i + 2:i + 3, :, :, :]).cuda()
-    #
-    #     p_res2 += loss_func.get_pressure_release_Loss(output4, i)
-
-    # for i in range(epoch):
-    #     p_local += mse_loss(p_local37[i:i +1, :, :, :],
-    #                         ref_res_local1[(bsize - 2) * id + i + 2:(bsize - 2) * id + i + 3, :, :, :])
-    #     p_res2 += mse_loss(output13[i:i + 1, :, :, :], output4[i + 2:i + 3, :, :, :]).cuda()
-    # p_res2 += loss_func.get_pressure_release_Loss(output4, i)
-
-    # for i in range(output11.shape[0]):
-    #     # print(mse_loss(output11[i:i + 1, :, :, :], output4[i+2:i + 3, :, :, :]))
-    #     p_res2 += (mse_loss(output11[i:i + 1, :, :, :], output4[i+2:i + 3, :, :, :]).cuda())
-
-    # p_b1 += w1[i] * loss_func.get_pressure_release_Loss(output4, i)
     p_local2 = mse_loss(ref_local_sol, output1)
 
     p_1 = p_res2
@@ -886,18 +684,12 @@ def train(model, input, ref_res, forward_state, backward_state, n_iters, time_ba
     train_loss_list = []
     source_loc_list_x = []
     source_loc_list_y = []
-    ref_speed_arr=[]
-    second_last_state = []
+
     state_detached1 = []
     state_detached2 = []
-    prev_output1 = []
-    prev_output2 = []
-    speed=[]
 
-    batch_loss = 0.0
-    batch_loss2 = 0.0
-    batch_loss3 = 0.0
-    batch_loss4 = 0.0
+    prev_output2 = []
+
     best_loss = 1e4
     #ref_speed = 65*torch.ones((1,1,64,64)).cuda()
     c=1/2
@@ -923,11 +715,6 @@ def train(model, input, ref_res, forward_state, backward_state, n_iters, time_ba
     # load previous9 model
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
     scheduler = StepLR(optimizer, step_size=5000, gamma=0.995)
-    #model, optimizer, scheduler = load_checkpoint(model, optimizer, scheduler,
-    #                                              pre_model_save_path)
-
-    #for param_group in optimizer.param_groups:
-        #print(param_group['lr'])
 
     loss_func = loss_generator(dt, dx)
 
@@ -962,10 +749,6 @@ def train(model, input, ref_res, forward_state, backward_state, n_iters, time_ba
                 x_t = prev_output2[-1:, :, :, :]
                 x_tt2 = prev_output2[-2:-1, :, :, :]
                 x_t2 = prev_output2[-1:, :, :, :]
-                # x_tt = input[time_batch_size*time_batch_id:time_batch_size*time_batch_id+1, :, :, :].detach()  # second last output
-                # x_t = input[time_batch_size*time_batch_id+1:time_batch_size*time_batch_id+2, :, :, :].detach()  # second last output
-                # x_tt2 = input[time_batch_size*time_batch_id:time_batch_size*time_batch_id+1, :, :, :].detach()
-                # x_t2 = input[time_batch_size*time_batch_id+1:time_batch_size*time_batch_id+2, :, :, :].detach()
 
             # output is a list
             output1,output2,output3,output4,second_last_state_forward,second_last_state_backward, ref_speed= model(time_batch_id,time_batch_size,hidden_state1,hidden_state2,x_t,x_tt,ref_speed,ref_speed1,chen0,x_t2,x_tt2)
@@ -997,14 +780,7 @@ def train(model, input, ref_res, forward_state, backward_state, n_iters, time_ba
                 state_detached2.append((h.detach(), c.detach()))
 
             if epoch % 5000 == 0 and epoch != 0:
-                torch.save(prev_output2, 'E:/Image_Dataset/True/res/tensor_102_' + str(epoch)+ '.pt')
-        # if epoch==0:
-        #     max_order=max(batch_loss3-last_loss1,batch_loss6-last_loss4)
-        #     omega11 = 2**(math.log2(max_order)-math.log2(batch_loss3-last_loss1))
-        #     #omega21 = 2**(math.log2(max_order)-math.log2(batch_loss4))
-        #     #omega31 = 2 ** (math.log2(max_order) - math.log2(batch_loss5))
-        #     omega41 = 2 ** (math.log2(max_order) - math.log2(batch_loss6-last_loss4))
-        #     print(omega11,omega41)
+                torch.save(prev_output2, './tensor_102_' + str(epoch)+ '.pt')
 
         if epoch>=1 and epoch%5==0:
             weight1 = batch_loss3 / (last_loss1)
@@ -1050,18 +826,8 @@ def train(model, input, ref_res, forward_state, backward_state, n_iters, time_ba
 
         if epoch%1000==0 and epoch!=0:
             #np.save('./train_loss_speed3_'+str(epoch), train_loss_list)
-            np.save('E:/Papertest/Inverse/SinglePoint/source_loc_x_15_'+str(epoch), source_loc_list_x)
-            np.save('E:/Papertest/Inverse/SinglePoint/source_loc_y_15_'+str(epoch), source_loc_list_y)
-        # if epoch%5000==0 and epoch!=0:
-        #     #speed = torch.squeeze(torch.squeeze(ref_speed, dim=0), dim=0)
-        #     np.save('E:/Papertest/Inverse/SoundSpeed/case1/speed_' + str(epoch),ref_speed_arr)
-        end = time.time()
-        # print('The epoch time is: ', (end - start))
-        # if epoch%100==0 and epoch!=0:
-        #     torch.save(ref_speed, 'E:/Papertest/Inverse/MultiObstacle/case4/case4_'+str(epoch)+'.pt')
-        #     plt.imshow(ref_speed.detach().cpu().numpy().squeeze(), cmap=cmap)
-        #     plt.colorbar()
-        #     plt.show()
+            np.save('./Inverse/SinglePoint/source_loc_x_15_'+str(epoch), source_loc_list_x)
+            np.save('./Inverse/SinglePoint/source_loc_y_15_'+str(epoch), source_loc_list_y)
 
     return train_loss_list,source_loc_list_x,source_loc_list_y
 
@@ -1109,7 +875,7 @@ if __name__ == '__main__':
     x = np.arange(0, Lx, dx)
     y = np.arange(0, Ly, dy)
     X, Y = np.meshgrid(x, y)
-    input_tensor = torch.load("E:/Image_Dataset/True/temp10.pt")
+    input_tensor = torch.load("./True/temp10.pt")
     input2 = torch.zeros((input_tensor.shape[0],1,64,64)).cuda()
     input2[:,:,:,:]=input_tensor[:,:,:,:]
 
@@ -1130,7 +896,7 @@ if __name__ == '__main__':
     steps = time_batch_size - 1
     effective_step = list(range(0, steps))
     num_time_batch = int((time_steps-2) / (time_batch_size-2))
-    n_iters_adam =30001
+    n_iters_adam =10001
     lr_adam = 1e-3  # 1e-3
     pre_model_save_path = './checkpoint' \
                           '500.pt'
@@ -1140,7 +906,7 @@ if __name__ == '__main__':
     dt = 0.01
     dx = 1
 
-    model = PhyCRNet(
+    model = OcaNet(
         input_channels=1,
         hidden_channels=[8, 32, 128, 128,1,1],
         input_kernel_size=[4, 4, 4, 3,3,3],
